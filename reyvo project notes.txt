@@ -1,0 +1,37 @@
+Running python project
+
+1. Change directory 
+   d:\projects\reyvo\src
+2. run the app
+   uv run uvicorn reyvo.main:app --reload --port 8000
+3. open the beckend test 
+   http://localhost:8000/docs
+4. Reseeding user
+   uv run python scripts\seed_demo.py
+   
+   --- Notes ---
+   
+   Demo account
+Email:    demo@reyvo.com
+Password: ReyvoDemo123!
+Tenant:   Reyvo Demo Agency (reyvo-demo-agency-261b02)
+Role:     Owner
+Start the API
+On Windows, use the Selector-loop factory (psycopg can't use the default Proactor loop):
+
+cd D:\Projects\Reyvo\src
+uv run uvicorn reyvo.main:app --reload --port 8000 --loop reyvo.dev:selector_loop_factory
+Then either:
+
+Open http://localhost:8000/docs, call POST /api/v1/auth/login, and paste the returned access_token into Scalar's Authorize button, or
+Use PowerShell:
+$login = Invoke-RestMethod -Method Post `
+  -Uri http://localhost:8000/api/v1/auth/login `
+  -ContentType "application/json" `
+  -Body (@{ email = "demo@reyvo.com"; password = "ReyvoDemo123!" } | ConvertTo-Json)
+
+$login.access_token
+Notes
+The database already had both migrations applied (7d226fe14b46), but no users existed. The new account is a real owner account in PostgreSQL.
+Recreate it anytime with uv run python scripts\seed_demo.py (it skips if the account already exists).
+I also added reyvo/dev.py for the Windows event-loop workaround and set DEBUG=false in .env to stop SQLAlchemy from echoing every query.
