@@ -1,7 +1,5 @@
 __pycache__/
 *.py[cod]
-# keep the byte-compiled output produced by scripts/build_pyc.ps1
-!build/**/*.pyc
 .venv/
 venv/
 .env
@@ -15,6 +13,7 @@ venv/
 .coverage
 htmlcov/
 dist/
+build/
 *.egg-info/
 .idea/
 .vscode/
