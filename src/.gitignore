@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+# keep the byte-compiled output produced by scripts/build_pyc.ps1
+!build/**/*.pyc
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite3
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+.idea/
+.vscode/
+.DS_Store
