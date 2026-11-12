@@ -28,6 +28,8 @@ and **Alembic**, covering:
 | CRM | Companies, contacts, CSV import/export, contact lists, segments |
 | Suppressions | Global/tenant suppressions and public unsubscribe links |
 | Inboxes | Gmail/Microsoft OAuth start/callback, token encryption, sending caps |
+| Email server | Brevo for platform/transactional email and campaign sending (ESP), alongside Gmail/Graph (reference stack; planned, not implemented) |
+| AI drafting | Semantic Kernel prompt functions for per-recipient email drafts and grounded knowledge-base chat |
 | Campaigns | CRUD, preflight checks, approval, launch/pause/resume, enrollments, preview |
 | Replies | Reply listing/classification updates, task creation |
 | Pipeline | Opportunities and tasks |
@@ -57,7 +59,7 @@ FastAPI app (reyvo.main)
      ├── services/*      domain logic (auth, CRM, campaigns, SSO, billing)
      ├── schemas/*       Pydantic request/response validation
      ├── db/*            SQLAlchemy models, enums, async session
-     └── integrations/*  Gmail, Microsoft Graph, AI, Stripe, WorkOS
+     └── integrations/*  Gmail, Microsoft Graph, Brevo, AI (Semantic Kernel), Stripe, WorkOS
                 │
                 ▼
         PostgreSQL (tenant-scoped rows, optional RLS)
@@ -437,7 +439,8 @@ token. Scalar persists the token across reloads.
 | `LOG_LEVEL` | No | `INFO` | Standard logging level |
 | `GOOGLE_*` | No | — | Gmail OAuth client |
 | `MICROSOFT_*` | No | — | Microsoft Graph OAuth client |
-| `WORKOS_API_KEY` | No | — | Enables WorkOS SSO |
+| `BREVO_*` | No | — | Brevo email server (`API_KEY`, `SENDER_EMAIL`, `SENDER_NAME`); planned |
+| `WORKOS_API_KEY` | No | — | Enables WorkOS SSO (identity provider) |
 | `WORKOS_CLIENT_ID` | No | — | Enables WorkOS SSO |
 | `WORKOS_REDIRECT_URI` | No | `http://localhost:8000/api/v1/auth/sso/callback` | Must match WorkOS dashboard |
 | `WORKOS_WEBHOOK_SECRET` | No | — | Reserved for future WorkOS webhooks |
@@ -859,7 +862,7 @@ MICROSOFT_TENANT_ID=common
 MICROSOFT_REDIRECT_URI=http://localhost:8000/api/v1/email-accounts/oauth/microsoft/callback
 ```
 
-### 11.3 AI drafting
+### 11.3 AI drafting (Semantic Kernel)
 
 ```dotenv
 AI_API_KEY=
@@ -867,7 +870,9 @@ AI_BASE_URL=https://api.openai.com/v1
 AI_MODEL=gpt-4.1-mini
 ```
 
-Any OpenAI-compatible endpoint works.
+Any OpenAI-compatible endpoint works. Drafting and grounded knowledge-base chat are implemented
+with [Semantic Kernel](https://learn.microsoft.com/semantic-kernel/) prompt functions in
+`reyvo/integrations/ai/`, behind the `DraftProvider`/`ChatProvider` protocols.
 
 ### 11.4 Stripe billing
 
@@ -881,10 +886,26 @@ STRIPE_PRICE_SCALE=
 
 Billing endpoints and webhook verification are scaffolded; Stripe is not required to run the API.
 
-### 11.5 WorkOS
+### 11.5 WorkOS (identity provider)
 
 See [section 9.3](#93-workos-enterprise-sso-optional). SDK: `workos` 5.x, wrapped asynchronously via
-`anyio.to_thread.run_sync`.
+`anyio.to_thread.run_sync`. WorkOS is the identity provider for enterprise SSO; local
+email/password login always remains available.
+
+### 11.6 Brevo (email server, planned)
+
+```dotenv
+BREVO_API_KEY=
+BREVO_SENDER_EMAIL=
+BREVO_SENDER_NAME=Reyvo
+```
+
+Brevo is the reference email server for **platform/transactional** mail (verification, invites,
+billing) and a **campaign-send (ESP) path** alongside the per-user Gmail/Graph adapters. It is
+**not implemented yet**: there are no `BREVO_*` settings in `reyvo/core/config.py` and no Brevo
+adapter registered in `reyvo/integrations/email/`. Any Brevo adapter must respect
+`REQUIRE_EMAIL_ACCOUNT_FOR_LAUNCH` and the daily/hourly sending caps, and must reconcile with
+design decision D-03 (which chose customer-owned mailboxes for MVP sending).
 
 ---
 
@@ -1020,7 +1041,7 @@ Explicit next steps:
 3. Add Redis-based rate limiting and token buckets.
 4. Add AI reply classification and approval queues.
 5. Automate RLS application in the deploy pipeline.
-6. Add email notifications (verification, invites, billing).
+6. Add Brevo as the email server: notifications (verification, invites, billing) and a campaign-send path.
 7. Add a CI pipeline: `ruff format --check`, `ruff check`, `pytest`.
 8. Add structured logging/metrics and error tracking.
 
