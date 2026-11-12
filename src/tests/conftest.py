@@ -7,9 +7,13 @@ import pytest
 from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
 from reyvo.core.config import Settings, reset_settings
+from reyvo.core.rate_limit import reset_rate_limiter
+from reyvo.core.redis import reset_redis
 from reyvo.db.enums import EmailAccountStatus, EmailProvider
 from reyvo.db.models import EmailAccount
+from reyvo.integrations.ai.factory import reset_ai_providers
 from reyvo.main import create_app
+from reyvo.workers.queue import reset_job_queue
 
 TEST_SECRET = "reyvo-test-secret-key-that-is-long-enough"
 
@@ -26,11 +30,20 @@ async def app():
         workos_api_key="sk_test_workos_api_key",
         workos_client_id="client_test_workos",
         workos_redirect_uri="http://test/api/v1/auth/sso/callback",
+        # Integration tests register regular members; keep the assistant usable
+        # for them while the admin-only deployment default stays unchanged.
+        knowledge_chat_access="members",
+        redis_url=None,
+        background_jobs_enabled=False,
     )
     application = create_app(settings)
     async with LifespanManager(application):
         yield application
     reset_settings()
+    reset_ai_providers()
+    reset_rate_limiter()
+    reset_redis()
+    reset_job_queue()
 
 
 @pytest.fixture

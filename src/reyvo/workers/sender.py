@@ -13,7 +13,8 @@ Run with:
 Required next steps before production use:
 - claim due enrollments atomically (SELECT ... FOR UPDATE SKIP LOCKED)
 - enforce per-inbox daily/hourly caps and business-hour windows
-- render the step template
+- render each email with reyvo.services.outreach_service.compose_enrollment_message
+  (this is where AI personalization from the candidate profile happens)
 - call the Gmail/Graph adapter
 - persist the Message row and advance the enrollment
 - handle retries, bounces, and reply stops
@@ -26,6 +27,7 @@ import logging
 import signal
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from reyvo.core.config import get_settings
 from reyvo.core.utils import utcnow
@@ -36,10 +38,17 @@ from reyvo.db.session import build_engine, build_session_factory
 logger = logging.getLogger("reyvo.workers.sender")
 
 
-async def find_due_enrollments(limit: int = 100) -> list[CampaignEnrollment]:
-    settings = get_settings()
-    engine = build_engine(settings)
-    session_factory = build_session_factory(engine)
+async def find_due_enrollments(
+    limit: int = 100,
+    *,
+    session_factory: async_sessionmaker[AsyncSession] | None = None,
+) -> list[CampaignEnrollment]:
+    """Return due enrollments, optionally reusing the caller's session factory."""
+
+    engine = None
+    if session_factory is None:
+        engine = build_engine(get_settings())
+        session_factory = build_session_factory(engine)
     try:
         async with session_factory() as session:
             stmt = (
@@ -56,11 +65,12 @@ async def find_due_enrollments(limit: int = 100) -> list[CampaignEnrollment]:
             )
             return list((await session.scalars(stmt)).all())
     finally:
-        await engine.dispose()
+        if engine is not None:
+            await engine.dispose()
 
 
-async def run_once() -> int:
-    due = await find_due_enrollments()
+async def run_once(*, session_factory: async_sessionmaker[AsyncSession] | None = None) -> int:
+    due = await find_due_enrollments(session_factory=session_factory)
     if due:
         logger.warning(
             "%s enrollment(s) are due, but the provider send step is not implemented "

@@ -3,6 +3,8 @@ from __future__ import annotations
 from fastapi import APIRouter, Request
 from sqlalchemy import text
 
+from reyvo.core.redis import ping_redis
+
 router = APIRouter(tags=["health"])
 
 
@@ -21,4 +23,12 @@ async def readiness(request: Request) -> dict[str, str]:
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         await session.execute(text("SELECT 1"))
-    return {"status": "ready"}
+
+    settings = request.app.state.settings
+    redis_status = "disabled"
+    if settings.redis_url:
+        redis_status = "ok" if await ping_redis() else "unavailable"
+    return {
+        "status": "ready" if redis_status != "unavailable" else "degraded",
+        "redis": redis_status,
+    }

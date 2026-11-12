@@ -36,7 +36,16 @@ class Settings(BaseSettings):
     # Persistence
     database_url: str = "postgresql+psycopg://reyvo:reyvo@localhost:5432/reyvo"
     auto_create_tables: bool = False
-    redis_url: str = "redis://localhost:6379/0"
+    # Optional shared Redis. When blank, rate limiting stays in-process and the
+    # job queue is disabled. Docker Compose sets this to the bundled service.
+    redis_url: str | None = None
+    redis_timeout_seconds: int = 2
+
+    # Background jobs
+    background_jobs_enabled: bool = True
+    # Delete chat conversations whose last activity is older than this. 0 keeps
+    # them indefinitely. Run the cleanup job from reyvo.workers.worker.
+    chat_retention_days: int = 90
 
     # HTTP
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
@@ -57,6 +66,17 @@ class Settings(BaseSettings):
     ai_api_key: str | None = None
     ai_base_url: str = "https://api.openai.com/v1"
     ai_model: str = "gpt-4.1-mini"
+    ai_embedding_model: str = "text-embedding-3-small"
+
+    # Knowledge base
+    design_doc_path: str = "Reyvo_Detailed_Design_Document_v1.0.docx"
+    knowledge_top_k: int = 6
+    # "platform_admin" keeps the internal design corpus private; set to "members"
+    # to let every authenticated tenant member use the assistant.
+    knowledge_chat_access: Literal["platform_admin", "members"] = "platform_admin"
+
+    # AI chat guardrails (shared through Redis when configured)
+    ai_chat_rate_limit_per_minute: int = 20
 
     # WorkOS SSO (enterprise sign-in alongside local password auth)
     workos_api_key: str | None = None

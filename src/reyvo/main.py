@@ -16,6 +16,7 @@ from reyvo.api.health import router as health_router
 from reyvo.api.v1.router import api_router
 from reyvo.core.config import Settings, get_settings, set_settings
 from reyvo.core.exceptions import AppError
+from reyvo.core.redis import close_redis
 from reyvo.core.request_context import get_request_id, set_request_id
 from reyvo.db.session import (
     build_engine,
@@ -24,6 +25,7 @@ from reyvo.db.session import (
     init_models,
 )
 from reyvo.services import billing_service
+from reyvo.workers.queue import close_job_queue
 
 logger = logging.getLogger("reyvo")
 
@@ -67,6 +69,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             async with session_factory() as session:
                 await billing_service.ensure_default_plans(session)
         yield
+        await close_job_queue()
+        await close_redis()
         await dispose_engine(engine)
 
     app = FastAPI(

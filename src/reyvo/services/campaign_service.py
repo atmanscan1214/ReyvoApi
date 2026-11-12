@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import html
-import re
 import uuid
 from typing import Any
 
@@ -31,7 +29,6 @@ from reyvo.db.models import (
     Campaign,
     CampaignEnrollment,
     CampaignStep,
-    Company,
     Contact,
     ContactList,
     ContactListMember,
@@ -48,18 +45,8 @@ from reyvo.schemas.campaign import (
     CampaignUpdate,
 )
 from reyvo.services import audit_service
+from reyvo.services.outreach_service import compose_outreach_message
 from reyvo.services.suppression_service import is_suppressed
-
-_MERGE_RE = re.compile(r"{{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*}}")
-
-
-def render_template(template: str, context: dict[str, Any], *, escape_html: bool = False) -> str:
-    def replace(match: re.Match[str]) -> str:
-        value = context.get(match.group(1), "")
-        text = "" if value is None else str(value)
-        return html.escape(text) if escape_html else text
-
-    return _MERGE_RE.sub(replace, template)
 
 
 async def get_campaign_or_404(
@@ -611,36 +598,6 @@ async def delete_campaign(
     await session.commit()
 
 
-async def build_merge_context(
-    session: AsyncSession, contact: Contact, *, tenant_name: str
-) -> dict[str, Any]:
-    company_name = None
-    company_domain = None
-    if contact.company_id is not None:
-        company = await session.scalar(
-            select(Company).where(
-                Company.id == contact.company_id,
-                Company.tenant_id == contact.tenant_id,
-            )
-        )
-        if company is not None:
-            company_name = company.name
-            company_domain = company.domain
-
-    context: dict[str, Any] = {
-        "first_name": contact.first_name or "",
-        "last_name": contact.last_name or "",
-        "full_name": contact.full_name,
-        "title": contact.title or "",
-        "email": contact.email_normalized,
-        "company": company_name or "",
-        "company_domain": company_domain or "",
-        "agency_name": tenant_name,
-    }
-    context.update(contact.custom_fields or {})
-    return context
-
-
 async def preview_campaign_step(
     session: AsyncSession,
     principal: Principal,
@@ -664,14 +621,22 @@ async def preview_campaign_step(
         raise NotFoundError("Campaign step not found.")
 
     tenant = await session.get(Tenant, principal.tenant_id)
-    context = await build_merge_context(session, contact, tenant_name=tenant.name if tenant else "")
-    body_text = step.body_text_template or html.unescape(
-        re.sub(r"<[^>]+>", "", step.body_html_template)
+    if tenant is None:
+        raise NotFoundError("Workspace not found.")
+
+    # AI steps are previewed with the same personalization path the sender uses,
+    # so reviewers see exactly what the prospective employee would receive.
+    message = await compose_outreach_message(
+        session,
+        tenant=tenant,
+        campaign=campaign,
+        step=step,
+        contact=contact,
     )
     return CampaignPreviewResponse(
-        subject=render_template(step.subject_template, context),
-        body_html=render_template(step.body_html_template, context, escape_html=True),
-        body_text=render_template(body_text, context),
+        subject=message.subject,
+        body_html=message.body_html,
+        body_text=message.body_text,
     )
 
 

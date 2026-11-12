@@ -7,8 +7,10 @@ from fastapi import Depends, Query, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from reyvo.core.exceptions import ForbiddenError, UnauthorizedError
+from reyvo.core.config import get_settings
+from reyvo.core.exceptions import ForbiddenError, RateLimitedError, UnauthorizedError
 from reyvo.core.pagination import Pagination
+from reyvo.core.rate_limit import rate_limiter
 from reyvo.core.request_context import get_request_id
 from reyvo.core.tenancy import Principal, set_tenant_context
 from reyvo.db.enums import MemberRole
@@ -49,6 +51,56 @@ async def require_platform_admin(
 ) -> Principal:
     if not principal.is_platform_admin:
         raise ForbiddenError("Platform administrator access is required.")
+    return principal
+
+
+async def require_knowledge_access(
+    principal: Principal = Depends(get_principal),
+) -> Principal:
+    """Gate the internal design-document assistant.
+
+    The default ``platform_admin`` policy keeps commercial assumptions,
+    estimates and security design out of tenant-facing accounts. Set
+    ``KNOWLEDGE_CHAT_ACCESS=members`` once the corpus is curated for customers.
+    """
+
+    if get_settings().knowledge_chat_access == "members":
+        return principal
+    if not principal.is_platform_admin:
+        raise ForbiddenError("The knowledge assistant is restricted to platform administrators.")
+    return principal
+
+
+_RATE_WINDOW_SECONDS = 60
+
+
+async def enforce_ai_rate_limit(
+    principal: Principal = Depends(require_knowledge_access),
+) -> Principal:
+    """Throttle per-user AI calls.
+
+    Uses a shared Redis window when ``REDIS_URL`` is configured and falls back
+    to an in-process window otherwise (or during a Redis outage).
+    """
+
+    limit = get_settings().ai_chat_rate_limit_per_minute
+    if limit <= 0:
+        return principal
+
+    result = await rate_limiter.hit(
+        f"ai-chat:{principal.tenant_id}:{principal.user_id}",
+        limit=limit,
+        window_seconds=_RATE_WINDOW_SECONDS,
+    )
+    if not result.allowed:
+        raise RateLimitedError(
+            "Too many AI requests. Try again shortly.",
+            details={
+                "retry_after_seconds": result.retry_after_seconds,
+                "limit": result.limit,
+                "window_seconds": _RATE_WINDOW_SECONDS,
+            },
+        )
     return principal
 
 

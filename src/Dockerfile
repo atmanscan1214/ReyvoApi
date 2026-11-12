@@ -16,6 +16,10 @@ COPY alembic.ini ./
 COPY alembic ./alembic
 COPY scripts ./scripts
 
+# Knowledge-base source. Override DESIGN_DOC_PATH (or mount a volume) to point
+# at a different document; ingestion and /ai/knowledge/status read it at runtime.
+COPY Reyvo_Detailed_Design_Document_v1.0.docx ./
+
 EXPOSE 8000
 
 # The default command runs the API. The sender worker is a separate process:

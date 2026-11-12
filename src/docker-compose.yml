@@ -56,7 +56,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: ["python", "-m", "reyvo.workers.sender"]
+    command: ["python", "-m", "reyvo.workers.worker"]
 
 volumes:
   reyvo_pgdata:

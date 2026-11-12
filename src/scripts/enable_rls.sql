@@ -31,7 +31,8 @@ DECLARE
     'tasks',
     'imports',
     'subscriptions',
-    'usage_counters'
+    'usage_counters',
+    'chat_conversations'
   ];
 BEGIN
   FOREACH table_name IN ARRAY tenant_scoped_tables LOOP
@@ -74,5 +75,29 @@ CREATE POLICY tenant_isolation ON audit_logs
     OR tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
   );
 
+-- Chat messages have no tenant_id column; scope them through their conversation.
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS tenant_isolation ON chat_messages;
+CREATE POLICY tenant_isolation ON chat_messages
+  USING (
+    EXISTS (
+      SELECT 1 FROM chat_conversations c
+      WHERE c.id = chat_messages.conversation_id
+        AND c.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM chat_conversations c
+      WHERE c.id = chat_messages.conversation_id
+        AND c.tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::uuid
+    )
+  );
+
 -- Plans, users, and webhook_events are intentionally global. Tenant access to
 -- them is mediated by the service layer (and by tenant-scoped membership rows).
+--
+-- knowledge_documents / knowledge_chunks are also intentionally global: they
+-- hold the platform-wide design corpus shared by every tenant. Chat access is
+-- gated at the API layer (KNOWLEDGE_CHAT_ACCESS) rather than by row ownership.
