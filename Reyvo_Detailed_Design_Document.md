@@ -17,6 +17,7 @@
 |---|---|---|---|
 | 0.1 | 9 Nov 2026 | Product & Engineering | Initial analysis and structure |
 | 1.0 | 9 Nov 2026 | Product & Engineering | Complete draft for review |
+| 1.1 | 13 Nov 2026 | Product & Engineering | Record reference implementation stack (Semantic Kernel, Brevo, WorkOS) — see §7.4.1 |
 
 ---
 
@@ -78,6 +79,12 @@ The MVP is an end-to-end vertical slice, not a collection of disconnected featur
 | D-08 | Billing | Stripe Billing with three plans, server-side entitlements, and usage metering | Fastest credible path to recurring revenue; Stripe handles tax, dunning, and invoices |
 | D-09 | White-label | Not at launch; Phase 3 | Branding is not required to prove the core value and adds tenant-theme and email-identity complexity |
 | D-10 | Manual replies | View, classify, assign, and link to the mailbox at launch; send-from-app in Phase 2 | Reduces MVP scope and avoids building a full inbox client |
+
+> **Reference stack (13 Nov 2026).** The implementation uses **Semantic Kernel** for AI email
+> templates, **Brevo** as the email server (platform notifications and a campaign-send/ESP path),
+> and **WorkOS** as the identity provider. See
+> [section 7.4.1](#741-reference-stack-for-implementation). The Brevo ESP path is an addition to,
+> not a replacement for, the D-03 MVP sending model.
 
 ### 1.3 What "1,000 emails per day" means
 
@@ -1242,6 +1249,18 @@ flowchart LR
 | Infra | Docker + Terraform; AWS ECS Fargate/RDS/ElastiCache/S3/CloudFront/WAF | Compliance and scale; alternative: Render/Fly for speed |
 | CI/CD | GitHub Actions; lint, typecheck, tests, migrations, image build, deploy | Preview environments for PRs |
 
+### 7.4.1 Reference stack for implementation
+
+The delivery team has selected the following tools for the implementation that follows this
+design. They are recorded here as the reference stack; the sections above remain the proposed
+architecture and are not rewritten by this note.
+
+| Concern | Reference tool | Notes |
+|---|---|---|
+| AI email templates and drafting | **Semantic Kernel** | Prompt-function orchestration for per-recipient email drafts and grounded knowledge-base chat, behind a provider-agnostic adapter. Implemented in the current Python/FastAPI codebase (`reyvo/integrations/ai/`). |
+| Email server | **Brevo** | Platform/transactional email (verification, invites, billing) and a campaign-send (ESP) path alongside the customer-owned Gmail/Graph adapters. Planned; not yet implemented. Campaign sending must reconcile with D-03. |
+| Identity provider | **WorkOS** | Enterprise SSO alongside local email/password login. Implemented in the current codebase (`reyvo/integrations/identity/workos_sso.py`). |
+
 ### 7.5 Deployment topology
 
 - **Environments:** local, preview (per PR), staging, production.
@@ -2036,10 +2055,12 @@ At $499/month subscription, gross contribution per tenant is roughly **$271–$3
 |---|---|---|---|
 | Google Cloud project / OAuth app | Gmail API, Pub/Sub | Reyvo | Tenant authorizes its mailbox |
 | Microsoft Entra app | Graph API | Reyvo | Tenant/admin consents |
-| AI provider | Drafting/classification | Reyvo | Subprocessor listed |
+| AI provider (Semantic Kernel) | Drafting/classification | Reyvo | Subprocessor listed |
 | Stripe | Billing | Reyvo | Tenant sees invoices |
 | AWS (or equivalent) | Hosting, DB, Redis, S3 | Reyvo | Subprocessor listed |
 | Transactional email | Reyvo notifications | Reyvo | Subprocessor listed |
+| Brevo (email server) | Platform notifications and campaign-send (ESP) | Reyvo | Subprocessor listed |
+| WorkOS (identity provider) | Enterprise SSO | Reyvo | Tenant configures its IdP connection |
 | Monitoring/error tracking | Operations | Reyvo | Subprocessor listed |
 | Blocklist/reputation API | Deliverability | Reyvo | Optional |
 | Lead data provider (Phase 3) | Discovery/enrichment | TBD | TBD |

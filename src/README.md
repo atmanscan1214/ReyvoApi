@@ -16,11 +16,21 @@ For full installation, local PostgreSQL setup, the demo account, WorkOS SSO, and
 | Migrations | Alembic |
 | Auth | JWT access/refresh tokens, Argon2id password hashing |
 | Tenant isolation | Application-scoped queries plus PostgreSQL RLS helpers |
-| Email providers | Gmail API and Microsoft Graph adapters |
-| AI | Semantic Kernel prompt functions for drafting, grounded knowledge-base chat, and embeddings (OpenAI-compatible endpoint) |
+| Email providers | Gmail API and Microsoft Graph adapters (per-user mailboxes) |
+| Email server | Brevo for platform/transactional email and as a campaign-send (ESP) path, alongside Gmail/Graph (reference stack; planned) |
+| Identity | WorkOS SSO (optional) alongside local JWT auth |
+| AI | Semantic Kernel prompt functions for drafting (the AI email-template engine), grounded knowledge-base chat, and embeddings (OpenAI-compatible endpoint) |
 | Billing | Stripe (optional at runtime) |
 | Background jobs | Arq + Redis (optional; in-process fallback for rate limits) |
 | Tests | pytest + httpx + SQLite (aiosqlite) |
+
+> **Reference stack for further development.** The AI email-template engine is
+> [Semantic Kernel](https://learn.microsoft.com/semantic-kernel/) (already wired under
+> `integrations/ai/`), the email server is **Brevo** (planned — see `BREVO_*` in `.env.example`;
+> platform notifications and a campaign-send/ESP path alongside Gmail/Graph), and the identity
+> provider is **WorkOS** (already wired under `integrations/identity/`).
+> Semantic Kernel and WorkOS are implemented today; Brevo is a documented target, not yet in the
+> code.
 
 ## Layout
 
@@ -34,8 +44,9 @@ src/
     db/                     # SQLAlchemy base, session, enums, models
     schemas/                # request/response models
     services/               # domain logic
-    integrations/email/     # Gmail and Microsoft Graph adapters
+    integrations/email/     # Gmail and Microsoft Graph adapters (Brevo planned)
     integrations/ai/        # Semantic Kernel draft/chat/embedding providers, prompts, factory
+    integrations/identity/  # WorkOS SSO provider
     integrations/knowledge/ # Heading-aware docx parsing and chunking
     integrations/billing/   # Stripe gateway
     workers/                # background sender and Arq job worker
@@ -366,6 +377,7 @@ See `.env.example`. Important settings:
 | `AUTO_CREATE_TABLES` | Dev-only schema bootstrap |
 | `GOOGLE_*` | Gmail OAuth client |
 | `MICROSOFT_*` | Microsoft Graph OAuth client |
+| `BREVO_*` | Brevo transactional-email server (`API_KEY`, `SENDER_EMAIL`, `SENDER_NAME`); planned |
 | `AI_*` | AI drafting/chat endpoint (`AI_EMBEDDING_MODEL` enables semantic retrieval) |
 | `DESIGN_DOC_PATH` | Word document ingested into the knowledge base |
 | `KNOWLEDGE_TOP_K` | Default number of chunks retrieved per question |
@@ -430,4 +442,4 @@ Explicit next steps:
 - Add Gmail Pub/Sub and Graph subscription webhook verification and reply ingestion.
 - Add AI classification and approval queues.
 - Automate RLS policy application in the migration/deploy pipeline.
-- Add email notifications (verification, invites, billing).
+- Add Brevo as the email server: platform notifications (verification, invites, billing) and a campaign-send (ESP) path alongside Gmail/Graph.
