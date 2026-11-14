@@ -68,6 +68,21 @@ class Settings(BaseSettings):
     ai_model: str = "gpt-4.1-mini"
     ai_embedding_model: str = "text-embedding-3-small"
 
+    # SMTP transport (Brevo, SES SMTP, Postmark, Mailgun, or any relay).
+    # Used by the "smtp" email-account provider and the test-send endpoint.
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
+    smtp_starttls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_timeout_seconds: int = 30
+    smtp_test_recipient: str | None = None
+    # Platform-wide kill switch. Keep false until delivery has been tested.
+    outbound_sending_enabled: bool = False
+
     # Knowledge base
     design_doc_path: str = "Reyvo_Detailed_Design_Document_v1.0.docx"
     knowledge_top_k: int = 6
@@ -109,6 +124,12 @@ class Settings(BaseSettings):
     @property
     def workos_sso_configured(self) -> bool:
         return bool(self.workos_api_key and self.workos_client_id)
+
+    @property
+    def smtp_configured(self) -> bool:
+        return bool(
+            self.smtp_host and (self.smtp_from_email or self.smtp_username)
+        )
 
     @field_validator("secret_key")
     @classmethod

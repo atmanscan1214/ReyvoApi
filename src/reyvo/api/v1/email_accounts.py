@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Body, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from reyvo.api.deps import get_principal
@@ -11,9 +11,11 @@ from reyvo.db.enums import EmailProvider
 from reyvo.db.session import get_db
 from reyvo.schemas.email_account import (
     EmailAccountRead,
+    EmailAccountTestRequest,
     EmailAccountUpdate,
     OAuthCallbackResponse,
     OAuthStartResponse,
+    SmtpAccountCreate,
 )
 from reyvo.services import email_account_service
 
@@ -54,6 +56,18 @@ async def oauth_callback(
     )
 
 
+@router.post("/smtp", response_model=EmailAccountRead, status_code=status.HTTP_201_CREATED)
+async def register_smtp_account(
+    payload: SmtpAccountCreate | None = Body(default=None),
+    session: AsyncSession = Depends(get_db),
+    principal: Principal = Depends(get_principal),
+) -> EmailAccountRead:
+    account = await email_account_service.register_smtp_account(
+        session, principal, payload or SmtpAccountCreate()
+    )
+    return EmailAccountRead.model_validate(account)
+
+
 @router.patch("/{account_id}", response_model=EmailAccountRead)
 async def update_email_account(
     account_id: uuid.UUID,
@@ -80,11 +94,13 @@ async def disconnect_email_account(
 @router.post("/{account_id}/test", response_model=dict, status_code=status.HTTP_200_OK)
 async def test_email_account(
     account_id: uuid.UUID,
+    payload: EmailAccountTestRequest | None = Body(default=None),
     session: AsyncSession = Depends(get_db),
     principal: Principal = Depends(get_principal),
 ) -> dict:
-    await email_account_service.get_email_account_or_404(session, principal.tenant_id, account_id)
-    return {
-        "ok": True,
-        "message": "The inbox is registered. Live provider checks run in the sender worker.",
-    }
+    return await email_account_service.send_test_email(
+        session,
+        principal,
+        account_id,
+        payload or EmailAccountTestRequest(),
+    )

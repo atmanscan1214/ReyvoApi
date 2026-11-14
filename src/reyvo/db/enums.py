@@ -32,6 +32,7 @@ class UserStatus(StrEnum):
 class EmailProvider(StrEnum):
     GOOGLE = "google"
     MICROSOFT = "microsoft"
+    SMTP = "smtp"
 
 
 class EmailAccountStatus(StrEnum):

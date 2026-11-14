@@ -5,6 +5,7 @@ from reyvo.db.enums import EmailProvider
 from reyvo.integrations.email.base import EmailAdapter
 from reyvo.integrations.email.gmail import GmailAdapter
 from reyvo.integrations.email.graph import GraphAdapter
+from reyvo.integrations.email.smtp import SmtpAdapter
 
 
 def get_email_adapter(provider: EmailProvider | str) -> EmailAdapter:
@@ -13,4 +14,6 @@ def get_email_adapter(provider: EmailProvider | str) -> EmailAdapter:
         return GmailAdapter()
     if value == EmailProvider.MICROSOFT.value:
         return GraphAdapter()
+    if value == EmailProvider.SMTP.value:
+        return SmtpAdapter()
     raise BadRequestError("Unsupported email provider.")

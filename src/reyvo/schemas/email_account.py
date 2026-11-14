@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from reyvo.db.enums import EmailAccountStatus, EmailProvider
 from reyvo.schemas.common import ORMModel
@@ -48,3 +48,15 @@ class OAuthCallbackResponse(BaseModel):
 class EmailAccountTestResponse(BaseModel):
     ok: bool
     message: str
+
+
+class EmailAccountTestRequest(BaseModel):
+    to_email: EmailStr | None = None
+    subject: str = Field(default="Reyvo test email", max_length=200)
+    message: str | None = Field(default=None, max_length=5_000)
+
+
+class SmtpAccountCreate(BaseModel):
+    from_name: str | None = Field(default=None, max_length=255)
+    daily_cap: int | None = Field(default=None, ge=1, le=2_000)
+    hourly_cap: int | None = Field(default=None, ge=1, le=500)
